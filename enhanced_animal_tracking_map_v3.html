@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Animal Tracking World Map - Enhanced v3</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <style>
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        #map { height: 100vh; width: 100%; }
+        .info { 
+            position: absolute; top: 10px; right: 10px; z-index: 1000;
+            background: white; padding: 15px; border-radius: 8px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.2);
+            max-width: 250px; font-size: 14px;
+        }
+        .legend { margin-top: 15px; }
+        .legend-item { margin: 4px 0; display: flex; align-items: center; }
+        .color-box { 
+            display: inline-block; width: 18px; height: 18px; 
+            margin-right: 8px; border-radius: 3px; border: 1px solid #ddd;
+        }
+        .time-legend { margin-top: 15px; padding-top: 10px; border-top: 1px solid #eee; }
+        .time-gradient { 
+            height: 20px; width: 150px; margin: 5px 0;
+            background: linear-gradient(to right, rgba(0,0,0,0.8), rgba(255,255,255,1));
+            border-radius: 3px; border: 1px solid #ddd;
+        }
+        .time-labels { display: flex; justify-content: space-between; font-size: 12px; color: #666; }
+        .path-info { margin-top: 10px; font-size: 12px; color: #666; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="info">
+        <h3>🌍 Animal Tracking Map</h3>
+        <p><strong>Total Animals:</strong> <span id="totalAnimals">6</span></p>
+        <p><strong>Total Points:</strong> <span id="totalPoints">30</span></p>
+        <div class="legend">
+            <h4>Animal Classes:</h4>
+            <div class="legend-item">
+                <span class="color-box" style="background-color: #FF6B6B;"></span>
+                <span>Bird: <span id="birdCount">1</span></span>
+            </div>
+            <div class="legend-item">
+                <span class="color-box" style="background-color: #4ECDC4;"></span>
+                <span>Mammal: <span id="mammalCount">1</span></span>
+            </div>
+            <div class="legend-item">
+                <span class="color-box" style="background-color: #45B7D1;"></span>
+                <span>Reptile: <span id="reptileCount">1</span></span>
+            </div>
+            <div class="legend-item">
+                <span class="color-box" style="background-color: #96CEB4;"></span>
+                <span>Fish: <span id="fishCount">1</span></span>
+            </div>
+            <div class="legend-item">
+                <span class="color-box" style="background-color: #FFEAA7;"></span>
+                <span>Amphibian: <span id="amphibianCount">1</span></span>
+            </div>
+            <div class="legend-item">
+                <span class="color-box" style="background-color: #DDA0DD;"></span>
+                <span>Insect: <span id="insectCount">1</span></span>
+            </div>
+        </div>
+        <div class="time-legend">
+            <h4>Time Indicator:</h4>
+            <div class="time-gradient"></div>
+            <div class="time-labels">
+                <span>1 Year Ago</span>
+                <span>Recent</span>
+            </div>
+            <p style="font-size: 12px; margin: 5px 0; color: #666;">Lighter = More Recent</p>
+        </div>
+        <div class="path-info">
+            <strong>Migration Paths:</strong><br>
+            Lines connect individual animals' journeys
+        </div>
+    </div>
+
+    <script>
+        // Initialize map centered globally
+        var map = L.map('map').setView([30.0, -20.0], 2);
+
+        // Add tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Animal color mapping
+        var animalColors = {
+            'bird': '#FF6B6B',
+            'mammal': '#4ECDC4',
+            'reptile': '#45B7D1',
+            'fish': '#96CEB4',
+            'amphibian': '#FFEAA7',
+            'insect': '#DDA0DD',
+            'unknown': '#74B9FF'
+        };
+
+        // Comprehensive data with all 6 animal classes represented
+        var animalData = [
+            // Arctic Tern migration (Bird) - tern_001
+            {"lat": 71.0, "lng": -8.0, "animal": "bird", "species": "Arctic Tern", "timestamp": "2024-01-15T10:00:00Z", "individual_id": "tern_001"},
+            {"lat": 65.0, "lng": -18.0, "animal": "bird", "species": "Arctic Tern", "timestamp": "2024-03-01T12:00:00Z", "individual_id": "tern_001"},
+            {"lat": 55.0, "lng": -25.0, "animal": "bird", "species": "Arctic Tern", "timestamp": "2024-05-15T14:00:00Z", "individual_id": "tern_001"},
+            {"lat": 40.0, "lng": -35.0, "animal": "bird", "species": "Arctic Tern", "timestamp": "2024-06-01T16:00:00Z", "individual_id": "tern_001"},
+            {"lat": 20.0, "lng": -45.0, "animal": "bird", "species": "Arctic Tern", "timestamp": "2024-07-15T18:00:00Z", "individual_id": "tern_001"},
+            
+            // Gray Whale migration (Mammal) - whale_001
+            {"lat": 60.0, "lng": -165.0, "animal": "mammal", "species": "Gray Whale", "timestamp": "2024-01-15T08:00:00Z", "individual_id": "whale_001"},
+            {"lat": 55.0, "lng": -155.0, "animal": "mammal", "species": "Gray Whale", "timestamp": "2024-02-15T10:00:00Z", "individual_id": "whale_001"},
+            {"lat": 45.0, "lng": -125.0, "animal": "mammal", "species": "Gray Whale", "timestamp": "2024-04-01T12:00:00Z", "individual_id": "whale_001"},
+            {"lat": 35.0, "lng": -120.0, "animal": "mammal", "species": "Gray Whale", "timestamp": "2024-05-15T14:00:00Z", "individual_id": "whale_001"},
+            {"lat": 25.0, "lng": -115.0, "animal": "mammal", "species": "Gray Whale", "timestamp": "2024-07-15T16:00:00Z", "individual_id": "whale_001"},
+            
+            // Loggerhead Turtle migration (Reptile) - turtle_001
+            {"lat": 30.0, "lng": -80.0, "animal": "reptile", "species": "Loggerhead Turtle", "timestamp": "2024-02-01T09:00:00Z", "individual_id": "turtle_001"},
+            {"lat": 28.0, "lng": -75.0, "animal": "reptile", "species": "Loggerhead Turtle", "timestamp": "2024-03-15T11:00:00Z", "individual_id": "turtle_001"},
+            {"lat": 25.0, "lng": -70.0, "animal": "reptile", "species": "Loggerhead Turtle", "timestamp": "2024-05-01T13:00:00Z", "individual_id": "turtle_001"},
+            {"lat": 20.0, "lng": -65.0, "animal": "reptile", "species": "Loggerhead Turtle", "timestamp": "2024-06-10T15:00:00Z", "individual_id": "turtle_001"},
+            {"lat": 15.0, "lng": -60.0, "animal": "reptile", "species": "Loggerhead Turtle", "timestamp": "2024-07-20T17:00:00Z", "individual_id": "turtle_001"},
+
+            // Bluefin Tuna migration (Fish) - tuna_001
+            {"lat": 45.0, "lng": -50.0, "animal": "fish", "species": "Atlantic Bluefin Tuna", "timestamp": "2024-01-10T08:00:00Z", "individual_id": "tuna_001"},
+            {"lat": 40.0, "lng": -45.0, "animal": "fish", "species": "Atlantic Bluefin Tuna", "timestamp": "2024-02-20T10:00:00Z", "individual_id": "tuna_001"},
+            {"lat": 35.0, "lng": -40.0, "animal": "fish", "species": "Atlantic Bluefin Tuna", "timestamp": "2024-04-15T12:00:00Z", "individual_id": "tuna_001"},
+            {"lat": 30.0, "lng": -35.0, "animal": "fish", "species": "Atlantic Bluefin Tuna", "timestamp": "2024-06-05T14:00:00Z", "individual_id": "tuna_001"},
+            {"lat": 25.0, "lng": -30.0, "animal": "fish", "species": "Atlantic Bluefin Tuna", "timestamp": "2024-07-25T16:00:00Z", "individual_id": "tuna_001"},
+
+            // European Tree Frog migration (Amphibian) - frog_001
+            {"lat": 52.0, "lng": 5.0, "animal": "amphibian", "species": "European Tree Frog", "timestamp": "2024-03-01T08:00:00Z", "individual_id": "frog_001"},
+            {"lat": 51.5, "lng": 4.5, "animal": "amphibian", "species": "European Tree Frog", "timestamp": "2024-04-01T10:00:00Z", "individual_id": "frog_001"},
+            {"lat": 51.0, "lng": 4.0, "animal": "amphibian", "species": "European Tree Frog", "timestamp": "2024-05-01T12:00:00Z", "individual_id": "frog_001"},
+            {"lat": 50.5, "lng": 3.5, "animal": "amphibian", "species": "European Tree Frog", "timestamp": "2024-06-01T14:00:00Z", "individual_id": "frog_001"},
+            {"lat": 50.0, "lng": 3.0, "animal": "amphibian", "species": "European Tree Frog", "timestamp": "2024-07-01T16:00:00Z", "individual_id": "frog_001"},
+
+            // Monarch Butterfly migration (Insect) - monarch_001
+            {"lat": 50.0, "lng": -95.0, "animal": "insect", "species": "Monarch Butterfly", "timestamp": "2024-02-15T08:00:00Z", "individual_id": "monarch_001"},
+            {"lat": 45.0, "lng": -90.0, "animal": "insect", "species": "Monarch Butterfly", "timestamp": "2024-03-30T10:00:00Z", "individual_id": "monarch_001"},
+            {"lat": 40.0, "lng": -85.0, "animal": "insect", "species": "Monarch Butterfly", "timestamp": "2024-05-15T12:00:00Z", "individual_id": "monarch_001"},
+            {"lat": 35.0, "lng": -100.0, "animal": "insect", "species": "Monarch Butterfly", "timestamp": "2024-06-20T14:00:00Z", "individual_id": "monarch_001"},
+            {"lat": 25.0, "lng": -105.0, "animal": "insect", "species": "Monarch Butterfly", "timestamp": "2024-07-30T16:00:00Z", "individual_id": "monarch_001"}
+        ];
+
+        // Function to calculate time-based intensity (CORRECTED: older = darker, recent = lighter)
+        function calculateTimeIntensity(timestamp) {
+            var now = new Date('2024-07-31T00:00:00Z'); // Current date as reference
+            var dataDate = new Date(timestamp);
+            var daysDiff = (now - dataDate) / (1000 * 60 * 60 * 24);
+            
+            // CORRECTED: Recent = higher intensity (lighter), Older = lower intensity (darker)
+            var intensity = Math.max(0.3, Math.min(1.0, 1 - (daysDiff / 180)));
+            return intensity;
+        }
+
+        // Function to adjust color based on recency (CORRECTED)
+        function adjustColorIntensity(baseColor, intensity) {
+            // Convert hex to RGB
+            var r = parseInt(baseColor.substr(1,2), 16);
+            var g = parseInt(baseColor.substr(3,2), 16);
+            var b = parseInt(baseColor.substr(5,2), 16);
+            
+            // CORRECTED: Higher intensity = brighter (more recent), Lower intensity = darker (older)
+            var whiteBlend = 1 - intensity; // Amount to blend with white for recent points
+            r = Math.round(r + (255 - r) * whiteBlend);
+            g = Math.round(g + (255 - g) * whiteBlend);
+            b = Math.round(b + (255 - b) * whiteBlend);
+            
+            // Convert back to hex
+            return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+        }
+
+        // Process data and group by individual
+        var animalPaths = {};
+        var processedMarkers = [];
+        var animalCounts = {}; // Count individuals, not points
+
+        animalData.forEach(function(point) {
+            var baseColor = animalColors[point.animal] || animalColors['unknown'];
+            var intensity = calculateTimeIntensity(point.timestamp);
+            var adjustedColor = adjustColorIntensity(baseColor, intensity);
+            
+            // Group by individual for paths
+            if (!animalPaths[point.individual_id]) {
+                animalPaths[point.individual_id] = {
+                    points: [],
+                    animal: point.animal,
+                    species: point.species,
+                    baseColor: baseColor
+                };
+                // Count each individual animal only once
+                animalCounts[point.animal] = (animalCounts[point.animal] || 0) + 1;
+            }
+            
+            var processedPoint = {
+                lat: point.lat,
+                lng: point.lng,
+                timestamp: point.timestamp,
+                color: adjustedColor,
+                baseColor: baseColor,
+                intensity: intensity,
+                animal: point.animal,
+                species: point.species,
+                individual_id: point.individual_id
+            };
+            
+            animalPaths[point.individual_id].points.push(processedPoint);
+            processedMarkers.push(processedPoint);
+        });
+
+        // Update legend counts (corrected to count individuals, not points)
+        Object.keys(animalCounts).forEach(function(animal) {
+            var countElement = document.getElementById(animal + 'Count');
+            if (countElement) {
+                countElement.textContent = animalCounts[animal];
+            }
+        });
+        document.getElementById('totalAnimals').textContent = Object.keys(animalPaths).length;
+        document.getElementById('totalPoints').textContent = processedMarkers.length;
+
+        // Draw migration paths for each individual animal
+        Object.keys(animalPaths).forEach(function(individualId) {
+            var pathData = animalPaths[individualId];
+            var points = pathData.points;
+            
+            if (points.length > 1) {
+                // Sort by timestamp to ensure correct chronological order
+                points.sort(function(a, b) { 
+                    return new Date(a.timestamp) - new Date(b.timestamp); 
+                });
+                
+                // Create path coordinates
+                var pathCoords = points.map(function(p) { 
+                    return [p.lat, p.lng]; 
+                });
+                
+                // Draw solid path line
+                L.polyline(pathCoords, {
+                    color: pathData.baseColor,
+                    weight: 4,
+                    opacity: 0.8,
+                    smoothFactor: 1.0
+                }).bindPopup(`
+                    <b>${pathData.species} Migration Path</b><br>
+                    Individual: ${individualId}<br>
+                    ${points.length} tracking points<br>
+                    Class: ${pathData.animal.charAt(0).toUpperCase() + pathData.animal.slice(1)}
+                `).addTo(map);
+            }
+        });
+
+        // Add markers with corrected time-based coloring
+        processedMarkers.forEach(function(marker) {
+            var circle = L.circleMarker([marker.lat, marker.lng], {
+                color: marker.color,
+                fillColor: marker.color,
+                fillOpacity: 0.8,
+                opacity: 1,
+                radius: Math.max(4, 6 + 4 * marker.intensity), // Size varies with recency
+                weight: 2
+            });
+            
+            var timeAgo = Math.round((new Date('2024-07-31T00:00:00Z') - new Date(marker.timestamp)) / (1000 * 60 * 60 * 24));
+            
+            var popup = `
+                <div style="font-family: Arial, sans-serif;">
+                    <h4 style="margin: 0 0 5px 0; color: ${marker.baseColor};">${marker.animal.charAt(0).toUpperCase() + marker.animal.slice(1)}</h4>
+                    <strong>Species:</strong> ${marker.species}<br>
+                    <strong>Coordinates:</strong> ${marker.lat.toFixed(4)}, ${marker.lng.toFixed(4)}<br>
+                    <strong>Date:</strong> ${new Date(marker.timestamp).toLocaleDateString()}<br>
+                    <strong>Days Ago:</strong> ${timeAgo}<br>
+                    <strong>Individual ID:</strong> ${marker.individual_id}<br>
+                    <strong>Recency:</strong> ${marker.intensity > 0.7 ? 'Recent' : marker.intensity > 0.5 ? 'Moderate' : 'Older'}
+                </div>
+            `;
+            
+            circle.bindPopup(popup);
+            circle.addTo(map);
+        });
+    </script>
+</body>
+</html>
